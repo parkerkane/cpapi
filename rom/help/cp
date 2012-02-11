@@ -1,0 +1,20 @@
+tt.callLater(timeout, function)
+
+function foo() print('bar') end
+> tt.callLater(5, foo)
+> tt.callLater(1, function() rs.setOutput('back', false) end)
+
+tt.handleTimer(timer)
+> evt, arg = os.pullEvent()
+> if evt == 'timer' then handleTimer(arg) end
+
+tt.main(listener)
+> tt.main({
+>    key = function(code)
+>        print('key:', key)
+>    end;
+>
+>   default = function(a,b,c,d)
+>        print('default:', a,b,c,d)
+>   end
+>})

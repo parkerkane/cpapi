@@ -1,0 +1,107 @@
+local laterFuncs = {}
+
+--[[
+Calls function later.
+
+timeout: Timeout of seconds
+func: function to be called
+
+Examples:
+> cp.callLater(5, specialFunction)
+> cp.callLater(5, function()
+>   rs.setOutput('back', false)
+> end)
+ ]]
+function callLater(timeout, func)
+    local id = os.startTimer(timeout)
+
+    laterFuncs[id] = func
+end
+
+--[[
+Default handled for timer events. Required for callLater function.
+
+timer: timer events parameter.
+
+Examples:
+> local evt, arg = os.pullEvent()
+> if evt == 'timer' then cp.handleTimer(arg) end
+ ]]
+function handleTimer(timer)
+
+    local func = laterFuncs[timer]
+
+    if func ~= nil then
+        local status, err = pcall(func)
+        if not status then
+            error('Error calling timed function:\n - ' .. tostring(err))
+        end
+        laterFuncs[args] = nil
+        return true
+    end
+
+    return false
+end
+
+--[[
+Simple main loop with listener suport.
+
+listener: Table of event listeners
+
+Example:
+> cp.main({
+>     redstone = function()
+>         print('redstone')
+>     end;
+>
+>     key = function(code)
+>         print('key', key)
+>     end;
+>
+>     char = function(char)
+>         print('char', char)
+>     end;
+>
+>     timer = function(timer, ...)
+>         print('timer', timer)
+>     end;
+>
+>     default = function(a,b,c,d)
+>         print('default:', a,b,c,d)
+>     end
+> })
+ ]]
+function main(listener)
+    while true do
+        local eventHandled = false
+
+        args = { os.pullEventRaw() }
+        evt = table.remove(args, 1);
+
+        if evt == 'terminate' then
+            error('Terminate')
+
+        elseif evt == 'timer' then
+            eventHandled = handleTimer(args[1])
+
+        end
+
+        if not eventHandled and listener ~= nil then
+            local status, err
+            local called = true
+
+            if listener[evt] ~= nil then
+                status, err = pcall(listener[evt], unpack(args))
+            elseif listener.default ~= nil then
+                status, err = pcall(listener.default, evt, unpack(args))
+            else
+                called = false
+            end
+
+            if not status and called then
+                error("Error handing event '" .. evt .. "':\n - " .. tostring(err))
+            end
+        end
+    end
+end
+
