@@ -1,0 +1,409 @@
+local tArgs = { ... }
+
+if #tArgs == 0 then
+    error("Usage: vi <path>")
+end
+
+Keys = {
+    up = 200,
+    down = 208,
+    left = 203,
+    right = 205,
+    lctrl = 29,
+    rctrl = 97,
+    lalt = 56,
+    ralt = 184,
+    lshift = 42,
+    shift = 54,
+    bspace = 14,
+    enter = 28,
+    f1 = 59,
+    f2 = 60,
+    f3 = 61,
+    f4 = 62,
+    f5 = 63,
+    f6 = 64,
+    f7 = 65,
+    f8 = 66,
+    f9 = 67,
+    f10 = 68,
+    tilde = 0,
+}
+
+Modes = { view = 0, edit = 1, ex = 2, hold = 3 }
+
+local mode = Modes.view;
+
+local filename = shell.resolve(tArgs[1])
+local readonly = fs.isReadOnly(filename)
+
+if fs.exists(filename) and fs.isDir(filename) then
+    error("Cannot edit a directory")
+end
+
+local w, h = term.getSize()
+local x, y = 1, 1
+local scrollX, scrollY = 0, 0
+local exPos = 1
+local exBuffer = ""
+
+local buffer = {}
+
+local function load(filename)
+    buffer = {}
+
+    if fs.exists(filename) then
+        local file = io.open(filename)
+
+        repeat
+            local line = file:read()
+            table.insert(buffer, line)
+
+            until not line
+    else
+        table.insert(buffer, "")
+    end
+end
+
+local function save(filename)
+    local file = io.open(filename, "w")
+    if file then
+        for n, sLine in ipairs(buffer) do
+            file:write(sLine .. "\n")
+        end
+        file:close()
+    end
+end
+
+local function updateCursorPosition()
+
+    local realX = math.min(x - scrollX, buffer[y]:len() + 1)
+
+    term.setCursorBlink(true)
+    term.setCursorPos(realX, y - scrollY)
+end
+
+local function updateStatus()
+
+    term.setCursorPos(1, h)
+    term.clearLine()
+
+    if mode == Modes.view or mode == Modes.edit then
+        term.setCursorPos(5, h)
+
+        local realX = math.min(x - scrollX, buffer[y]:len() + 1)
+        io.write('L' .. y .. ' C' .. realX)
+
+        if mode == Modes.edit then
+            term.setCursorPos(20, h)
+            io.write('** INSERT **')
+        end
+
+        updateCursorPosition()
+    elseif mode == Modes.ex then
+        io.write(': ' .. exBuffer)
+
+        term.setCursorPos(2 + exPos, h)
+    elseif mode == Modes.hold then
+        io.write('Press any key to continue..')
+    end
+end
+
+local function updateScreen()
+    for y = 1, h - 1 do
+        term.setCursorPos(1 - scrollX, y)
+        term.clearLine()
+
+        local line = buffer[y + scrollY]
+        if line ~= nil then
+            term.write(line)
+        end
+    end
+end
+
+local function moveCursor(key)
+
+    if key == Keys.left then
+        x = math.min(x, buffer[y]:len() + 1)
+        x = x - 1
+
+        if x == 0 then
+            local newy = math.max(1, y - 1)
+            x = buffer[newy]:len() + 1
+
+            os.queueEvent('key', Keys.up)
+        end
+
+    elseif key == Keys.right then
+        x = x + 1
+
+        if x > buffer[y]:len() + 1 and y ~= #buffer then
+            x = 1
+            os.queueEvent('key', Keys.down)
+        end
+
+    elseif key == Keys.up then
+        y = y - 1
+
+    elseif key == Keys.down then
+        y = math.min(y + 1, #buffer)
+    end
+
+    local update = false
+
+    while x - scrollX < 1 do
+        scrollX = scrollX - 10
+
+        if scrollX < 0 then
+            scrollX = 0
+            x = 1
+        else
+            update = true
+        end
+    end
+
+    while x - scrollX > w do
+        scrollX = scrollX + 10
+        update = true
+    end
+
+    if y - scrollY < 1 then
+
+        scrollY = scrollY - 1
+        if scrollY < 0 then scrollY = 0 end
+
+        y = scrollY + 1
+        update = true
+    end
+
+    if y - scrollY > h - 1 then
+        scrollY = scrollY + 1
+
+        if scrollY > #buffer - h + 1 then
+            scrollY = #buffer - h + 1
+        end
+
+        y = scrollY + h - 1
+        update = true
+    end
+
+    if update then updateScreen() end
+
+    updateStatus()
+    updateCursorPosition()
+end
+
+local function runExCommand(cmd)
+    if cmd == 'q' then
+        os.queueEvent('quit')
+
+    elseif cmd == 'w' then
+        save(filename)
+
+    elseif cmd == 'wq' or cmd == 'x' then
+        save(filename)
+        os.queueEvent('quit')
+
+    elseif cmd == 'sh' then
+        term.clear()
+        term.setCursorPos(1, 1)
+        shell.run('shell')
+        print()
+
+        updateScreen()
+        updateCursorPosition()
+
+    elseif cmd == 'wr' then
+        save(filename)
+
+        term.clear()
+        term.setCursorPos(1, 1)
+        shell.run('/' .. filename)
+
+        mode = Modes.hold
+    end
+end
+
+local viewModeListener = {
+    [Keys.up] = moveCursor;
+    [Keys.down] = moveCursor;
+    [Keys.left] = moveCursor;
+    [Keys.right] = moveCursor;
+
+    i = function()
+        mode = Modes.edit
+        updateStatus()
+    end;
+
+    [':'] = function()
+        exPos = 1
+        exBuffer = ""
+        mode = Modes.ex
+        updateStatus()
+    end;
+
+    a = function()
+        x = math.min(buffer[y]:len() + 1, x + 1)
+        mode = Modes.edit
+        updateStatus()
+    end;
+
+    ['$'] = function()
+        x = buffer[y]:len() + 1
+        moveCursor()
+    end;
+
+    ['^'] = function()
+        x = 1
+        moveCursor()
+    end;
+}
+
+local editModeListener = {
+    [Keys.up] = moveCursor;
+    [Keys.down] = moveCursor;
+    [Keys.left] = moveCursor;
+    [Keys.right] = moveCursor;
+
+    [Keys.lctrl] = function()
+        mode = Modes.view
+        updateStatus()
+    end;
+
+    [Keys.rctrl] = function()
+        mode = Modes.view
+        updateStatus()
+    end;
+
+    [Keys.enter] = function()
+        local line = buffer[y]
+
+        buffer[y] = buffer[y]:sub(1, x - 1)
+        table.insert(buffer, y + 1, line:sub(x))
+
+        x = 1
+        y = y + 1
+
+        updateScreen()
+        updateCursorPosition()
+    end;
+
+    [Keys.bspace] = function()
+
+        if x > 1 then
+            x = x - 1
+            buffer[y] = buffer[y]:sub(1, x - 1) .. buffer[y]:sub(x + 1)
+        elseif y > 1 then
+            local ln = buffer[y - 1]:len()
+            buffer[y - 1] = buffer[y - 1] .. buffer[y]
+            table.remove(buffer, y)
+
+            x = ln + 1
+            y = y - 1
+        end
+        updateScreen()
+        updateCursorPosition()
+    end;
+
+    defaultChar = function(char)
+
+        buffer[y] = buffer[y]:sub(1, x - 1) .. char .. buffer[y]:sub(x)
+        x = x + 1
+        moveCursor()
+        updateScreen()
+        updateCursorPosition()
+    end
+}
+
+local exModeListener = {
+    [Keys.lctrl] = function()
+        mode = Modes.view
+        updateStatus()
+    end;
+
+    [Keys.rctrl] = function()
+        mode = Modes.view
+        updateStatus()
+    end;
+
+    [Keys.left] = function()
+        exPos = math.max(1, exPos - 1)
+        updateStatus()
+    end;
+
+    [Keys.right] = function()
+        exPos = math.min(exBuffer:len() + 1, exPos + 1)
+        updateStatus()
+    end;
+
+    [Keys.bspace] = function()
+        exPos = math.max(1, exPos - 1)
+        exBuffer = exBuffer:sub(1, exPos - 1) .. exBuffer:sub(exPos + 1)
+
+        updateStatus()
+    end;
+
+    [Keys.enter] = function()
+        mode = Modes.view
+        runExCommand(exBuffer)
+        updateStatus()
+    end;
+
+    defaultChar = function(char)
+
+        exBuffer = exBuffer:sub(1, exPos - 1) .. char .. exBuffer:sub(exPos)
+        exPos = exPos + 1
+
+        updateStatus()
+    end
+}
+
+local holdListener = {
+    defaultKey = function()
+        mode = Modes.view
+        updateScreen()
+        updateStatus()
+    end
+}
+
+local allListeners = {
+    [Modes.view] = viewModeListener,
+    [Modes.edit] = editModeListener,
+    [Modes.ex] = exModeListener,
+    [Modes.hold] = holdListener,
+}
+
+load(filename)
+
+term.clear()
+
+updateScreen()
+updateStatus()
+updateCursorPosition()
+
+cp.main({
+    key = function(keyCode)
+        local listener = allListeners[mode]
+        if listener == null then return end
+
+        local func = listener[keyCode] or listener.defaultKey
+        if func == nil then return end
+
+        func(keyCode)
+    end;
+
+    char = function(char)
+        local listener = allListeners[mode]
+        if listener == null then return end
+
+        local func = listener[char] or listener.defaultChar
+        if func == nil then return end
+
+        func(char)
+    end;
+
+    quit = function()
+        term.clear()
+        term.setCursorPos(1, 1)
+    end;
+})

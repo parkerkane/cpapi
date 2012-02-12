@@ -11,7 +11,7 @@ Examples:
 > cp.callLater(5, function()
 >   rs.setOutput('back', false)
 > end)
- ]]
+--]]
 function callLater(timeout, func)
     local id = os.startTimer(timeout)
 
@@ -26,7 +26,7 @@ timer: timer events parameter.
 Examples:
 > local evt, arg = os.pullEvent()
 > if evt == 'timer' then cp.handleTimer(arg) end
- ]]
+--]]
 function handleTimer(timer)
 
     local func = laterFuncs[timer]
@@ -70,9 +70,10 @@ Example:
 >         print('default:', a,b,c,d)
 >     end
 > })
- ]]
+--]]
 function main(listener)
-    while true do
+    local quit = false
+    repeat
         local eventHandled = false
 
         args = { os.pullEventRaw() }
@@ -80,6 +81,9 @@ function main(listener)
 
         if evt == 'terminate' then
             error('Terminate')
+
+        elseif evt == 'quit' then
+            quit = true
 
         elseif evt == 'timer' then
             eventHandled = handleTimer(args[1])
@@ -102,6 +106,6 @@ function main(listener)
                 error("Error handing event '" .. evt .. "':\n - " .. tostring(err))
             end
         end
-    end
+    until quit
 end
 
