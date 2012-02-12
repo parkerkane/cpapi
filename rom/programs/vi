@@ -51,6 +51,8 @@ local searchString = ""
 local searchPositionX = 0
 local searchPositionY = 0
 local holdMessage
+local lastChar
+local dirty = false
 
 local buffer = {}
 
@@ -249,7 +251,7 @@ end
 
 local function doSearch()
     for i = searchPositionY, #buffer do
-        local newPos = buffer[i]:find(searchString, searchPositionX + 1)
+        local newPos = buffer[i]:find(searchString, searchPositionX + 1, true)
         searchPositionX = 0
 
         if newPos ~= nil then
@@ -287,16 +289,50 @@ local viewModeListener = {
         updateStatus()
     end;
 
+    a = function()
+        x = math.min(buffer[y]:len() + 1, x + 1)
+        mode = Modes.edit
+        updateStatus()
+    end;
+
+    I = function()
+        mode = Modes.edit
+        x = 1
+        updateStatus()
+    end;
+
+    A = function()
+        mode = Modes.edit
+        x = buffer[y]:len() + 1
+        updateStatus()
+    end;
+
+    o = function()
+        mode = Modes.edit
+        x = 1
+        y = y + 1
+        table.insert(buffer, y, "")
+        updateStatus()
+        updateScreen()
+        updateCursorPosition()
+        dirty = true
+    end;
+
+    O = function()
+        mode = Modes.edit
+        x = 1
+        y = math.max(1, y - 1)
+        table.insert(buffer, y, "")
+        updateStatus()
+        updateScreen()
+        updateCursorPosition()
+        dirty = true
+    end;
+
     [':'] = function()
         cmdPos = 1
         cmdBuffer = ""
         mode = Modes.ex
-        updateStatus()
-    end;
-
-    a = function()
-        x = math.min(buffer[y]:len() + 1, x + 1)
-        mode = Modes.edit
         updateStatus()
     end;
 
@@ -322,13 +358,28 @@ local viewModeListener = {
         updateStatus()
     end;
 
-    ['n'] = function()
+    n = function()
         doSearch()
     end;
 
-    ['L'] = function()
+    L = function()
         updateScreen()
         updateCursorPosition()
+    end;
+
+    defaultChar = function(char)
+
+        local c = tostring(lastChar)..char
+
+        if c == 'dd' then
+            table.remove(buffer, y)
+            y = math.min(y, #buffer)
+            updateScreen()
+            moveCursor()
+        end
+
+        lastChar=char
+
     end;
 }
 
@@ -359,6 +410,7 @@ local editModeListener = {
 
         updateScreen()
         updateCursorPosition()
+        dirty = true
     end;
 
     [Keys.bspace] = function()
@@ -376,6 +428,7 @@ local editModeListener = {
         end
         updateScreen()
         updateCursorPosition()
+        dirty = true
     end;
 
     defaultChar = function(char)
@@ -385,6 +438,7 @@ local editModeListener = {
         moveCursor()
         updateLine()
         updateCursorPosition()
+        dirty = true
     end
 }
 
