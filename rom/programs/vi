@@ -30,7 +30,7 @@ Keys = {
     tilde = 0,
 }
 
-Modes = { view = 0, edit = 1, ex = 2, hold = 3 }
+Modes = { view = 0, edit = 1, ex = 2, search = 3, hold = 4 }
 
 local mode = Modes.view;
 
@@ -44,8 +44,13 @@ end
 local w, h = term.getSize()
 local x, y = 1, 1
 local scrollX, scrollY = 0, 0
-local exPos = 1
-local exBuffer = ""
+local cmdPos = 1
+local cmdBuffer = ""
+
+local searchString = ""
+local searchPositionX = 0
+local searchPositionY = 0
+local holdMessage
 
 local buffer = {}
 
@@ -92,21 +97,36 @@ local function updateStatus()
         term.setCursorPos(5, h)
 
         local realX = math.min(x - scrollX, buffer[y]:len() + 1)
-        io.write('L' .. y .. ' C' .. realX)
+        term.write('L' .. y .. ' C' .. realX)
 
         if mode == Modes.edit then
             term.setCursorPos(20, h)
-            io.write('** INSERT **')
+            term.write('** INSERT **')
         end
 
         updateCursorPosition()
-    elseif mode == Modes.ex then
-        io.write(': ' .. exBuffer)
 
-        term.setCursorPos(2 + exPos, h)
+    elseif mode == Modes.ex then
+        term.write(': ' .. cmdBuffer)
+
+        term.setCursorPos(2 + cmdPos, h)
+
     elseif mode == Modes.hold then
-        io.write('Press any key to continue..')
+        term.write(holdMessage)
+
+    elseif mode == Modes.search then
+        term.write('/' .. cmdBuffer)
+
+        term.setCursorPos(1 + cmdPos, h)
     end
+end
+
+local function updateLine()
+    local line = buffer[y]
+    term.setCursorPos(1 - scrollX, y - scrollY)
+    term.clearLine()
+    term.write(line)
+    term.setCursorPos(x - scrollX, y - scrollY)
 end
 
 local function updateScreen()
@@ -117,24 +137,26 @@ local function updateScreen()
         local line = buffer[y + scrollY]
         if line ~= nil then
             term.write(line)
+        else
+            term.write('~')
         end
     end
 end
 
 local function moveCursor(key)
 
-    if key == Keys.left then
+    if key == Keys.left or key == 'h' then
         x = math.min(x, buffer[y]:len() + 1)
         x = x - 1
 
-        if x == 0 then
+        if x == 0 and y > 1 then
             local newy = math.max(1, y - 1)
             x = buffer[newy]:len() + 1
 
             os.queueEvent('key', Keys.up)
         end
 
-    elseif key == Keys.right then
+    elseif key == Keys.right or key == 'l' then
         x = x + 1
 
         if x > buffer[y]:len() + 1 and y ~= #buffer then
@@ -142,10 +164,10 @@ local function moveCursor(key)
             os.queueEvent('key', Keys.down)
         end
 
-    elseif key == Keys.up then
+    elseif key == Keys.up or key == 'k' then
         y = y - 1
 
-    elseif key == Keys.down then
+    elseif key == Keys.down or key == 'j' then
         y = math.min(y + 1, #buffer)
     end
 
@@ -221,7 +243,32 @@ local function runExCommand(cmd)
         shell.run('/' .. filename)
 
         mode = Modes.hold
+        holdMessage = 'Press any key to continue..'
     end
+end
+
+local function doSearch()
+    for i = searchPositionY, #buffer do
+        local newPos = buffer[i]:find(searchString, searchPositionX + 1)
+        searchPositionX = 0
+
+        if newPos ~= nil then
+            x = newPos
+            y = i
+
+            searchPositionX = x
+            searchPositionY = y
+
+            moveCursor()
+            updateCursorPosition()
+            return
+        end
+    end
+
+    term.setCursorPos(1, h)
+    term.clearLine()
+    holdMessage = 'String found.'
+    mode = Modes.hold
 end
 
 local viewModeListener = {
@@ -230,14 +277,19 @@ local viewModeListener = {
     [Keys.left] = moveCursor;
     [Keys.right] = moveCursor;
 
+    h = moveCursor;
+    j = moveCursor;
+    k = moveCursor;
+    l = moveCursor;
+
     i = function()
         mode = Modes.edit
         updateStatus()
     end;
 
     [':'] = function()
-        exPos = 1
-        exBuffer = ""
+        cmdPos = 1
+        cmdBuffer = ""
         mode = Modes.ex
         updateStatus()
     end;
@@ -256,6 +308,27 @@ local viewModeListener = {
     ['^'] = function()
         x = 1
         moveCursor()
+    end;
+
+    ['0'] = function()
+        x = 1
+        moveCursor()
+    end;
+
+    ['/'] = function()
+        cmdPos = 1
+        cmdBuffer = ""
+        mode = Modes.search
+        updateStatus()
+    end;
+
+    ['n'] = function()
+        doSearch()
+    end;
+
+    ['L'] = function()
+        updateScreen()
+        updateCursorPosition()
     end;
 }
 
@@ -310,7 +383,7 @@ local editModeListener = {
         buffer[y] = buffer[y]:sub(1, x - 1) .. char .. buffer[y]:sub(x)
         x = x + 1
         moveCursor()
-        updateScreen()
+        updateLine()
         updateCursorPosition()
     end
 }
@@ -327,32 +400,32 @@ local exModeListener = {
     end;
 
     [Keys.left] = function()
-        exPos = math.max(1, exPos - 1)
+        cmdPos = math.max(1, cmdPos - 1)
         updateStatus()
     end;
 
     [Keys.right] = function()
-        exPos = math.min(exBuffer:len() + 1, exPos + 1)
+        cmdPos = math.min(cmdBuffer:len() + 1, cmdPos + 1)
         updateStatus()
     end;
 
     [Keys.bspace] = function()
-        exPos = math.max(1, exPos - 1)
-        exBuffer = exBuffer:sub(1, exPos - 1) .. exBuffer:sub(exPos + 1)
+        cmdPos = math.max(1, cmdPos - 1)
+        cmdBuffer = cmdBuffer:sub(1, cmdPos - 1) .. cmdBuffer:sub(cmdPos + 1)
 
         updateStatus()
     end;
 
     [Keys.enter] = function()
         mode = Modes.view
-        runExCommand(exBuffer)
+        runExCommand(cmdBuffer)
         updateStatus()
     end;
 
     defaultChar = function(char)
 
-        exBuffer = exBuffer:sub(1, exPos - 1) .. char .. exBuffer:sub(exPos)
-        exPos = exPos + 1
+        cmdBuffer = cmdBuffer:sub(1, cmdPos - 1) .. char .. cmdBuffer:sub(cmdPos)
+        cmdPos = cmdPos + 1
 
         updateStatus()
     end
@@ -366,10 +439,60 @@ local holdListener = {
     end
 }
 
+local searchListener = {
+    [Keys.lctrl] = function()
+        mode = Modes.view
+        updateStatus()
+    end;
+
+    [Keys.rctrl] = function()
+        mode = Modes.view
+        updateStatus()
+    end;
+
+    [Keys.left] = function()
+        cmdPos = math.max(1, cmdPos - 1)
+        updateStatus()
+    end;
+
+    [Keys.right] = function()
+        cmdPos = math.min(cmdBuffer:len() + 1, cmdPos + 1)
+        updateStatus()
+    end;
+
+    [Keys.bspace] = function()
+        cmdPos = math.max(1, cmdPos - 1)
+        cmdBuffer = cmdBuffer:sub(1, cmdPos - 1) .. cmdBuffer:sub(cmdPos + 1)
+
+        updateStatus()
+    end;
+
+    [Keys.enter] = function()
+        mode = Modes.view
+
+        searchPositionX = 0
+        searchPositionY = 1
+        searchString = cmdBuffer
+
+        doSearch()
+
+        updateStatus()
+    end;
+
+    defaultChar = function(char)
+
+        cmdBuffer = cmdBuffer:sub(1, cmdPos - 1) .. char .. cmdBuffer:sub(cmdPos)
+        cmdPos = cmdPos + 1
+
+        updateStatus()
+    end
+}
+
 local allListeners = {
     [Modes.view] = viewModeListener,
     [Modes.edit] = editModeListener,
     [Modes.ex] = exModeListener,
+    [Modes.search] = searchListener,
     [Modes.hold] = holdListener,
 }
 
