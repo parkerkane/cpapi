@@ -151,9 +151,10 @@ local function updateScreen()
     end
 
     updateCursorPosition()
+    updateStatus()
 end
 
-local function moveCursor(key)
+local function updateCursor(key)
 
     if key == Keys.left or key == 'h' then
         x = math.min(x, buffer[y]:len() + 1)
@@ -207,14 +208,14 @@ local function moveCursor(key)
 
     while y - scrollY < 1 do
 
-        scrollY = scrollY - 1
+        scrollY = scrollY - 3
         if scrollY < 0 then scrollY = 0 end
 
         update = true
     end
 
     while y - scrollY > h - 1 do
-        scrollY = scrollY + 1
+        scrollY = scrollY + 3
 
         if scrollY > #buffer - h + 1 then
             scrollY = #buffer - h + 1
@@ -223,9 +224,12 @@ local function moveCursor(key)
         update = true
     end
 
-    if update then updateScreen() end
+    if update then
+        updateScreen()
+    else
+        updateStatus()
+    end
 
-    updateStatus()
 end
 
 local function runExCommand(cmd)
@@ -246,7 +250,6 @@ local function runExCommand(cmd)
         print()
 
         updateScreen()
-        updateCursorPosition()
 
     elseif cmd == 'wr' then
         save(filename)
@@ -257,6 +260,12 @@ local function runExCommand(cmd)
 
         setMode(Modes.hold)
         holdMessage = 'Press any key to continue..'
+
+    elseif tonumber(cmd) ~= nil then
+        x = 1
+        y = math.min(#buffer, tonumber(cmd))
+        updateCursor()
+
     end
 end
 
@@ -275,7 +284,7 @@ local function doSearch()
             searchPositionX = x
             searchPositionY = y
 
-            moveCursor()
+            updateCursor()
             updateScreen()
             return
         end
@@ -300,15 +309,15 @@ local function repeatable(func)
 end
 
 local viewModeListener = {
-    [Keys.up] = repeatable(moveCursor);
-    [Keys.down] = repeatable(moveCursor);
-    [Keys.left] = repeatable(moveCursor);
-    [Keys.right] = repeatable(moveCursor);
+    [Keys.up] = repeatable(updateCursor);
+    [Keys.down] = repeatable(updateCursor);
+    [Keys.left] = repeatable(updateCursor);
+    [Keys.right] = repeatable(updateCursor);
 
-    h = repeatable(moveCursor);
-    j = repeatable(moveCursor);
-    k = repeatable(moveCursor);
-    l = repeatable(moveCursor);
+    h = repeatable(updateCursor);
+    j = repeatable(updateCursor);
+    k = repeatable(updateCursor);
+    l = repeatable(updateCursor);
 
     i = function()
         setMode(Modes.edit)
@@ -338,7 +347,6 @@ local viewModeListener = {
         x = 1
         y = y + 1
         table.insert(buffer, y, "")
-        updateStatus()
         updateScreen()
         dirty = true
     end);
@@ -348,9 +356,7 @@ local viewModeListener = {
         x = 1
         y = math.max(1, y - 1)
         table.insert(buffer, y, "")
-        updateStatus()
         updateScreen()
-        updateCursorPosition()
         dirty = true
     end);
 
@@ -363,12 +369,12 @@ local viewModeListener = {
 
     ['$'] = function()
         x = buffer[y]:len() + 1
-        moveCursor()
+        updateCursor()
     end;
 
     ['^'] = function()
         x = 1
-        moveCursor()
+        updateCursor()
     end;
 
     ['0'] = function()
@@ -379,7 +385,7 @@ local viewModeListener = {
         end
 
         x = 1
-        moveCursor()
+        updateCursor()
     end;
 
     ['/'] = function()
@@ -397,6 +403,21 @@ local viewModeListener = {
         updateScreen()
     end;
 
+    G = function()
+
+        if repeatCount == 0 then
+            x=1
+            y=#buffer
+        else
+            x=1
+            y=math.min(repeatCount, #buffer)
+        end
+
+        updateCursor()
+
+        repeatCount = 0
+    end;
+
     defaultChar = function(char)
 
         local c = tostring(lastChar) .. char
@@ -405,9 +426,8 @@ local viewModeListener = {
             repeatable(function()
                 table.remove(buffer, y)
                 y = math.min(y, #buffer)
-                moveCursor()
+                updateCursor()
             end)()
-            updateScreen()
         elseif tonumber(char) ~= nil then
             repeatCount = repeatCount * 10 + tonumber(char)
         end
@@ -417,10 +437,10 @@ local viewModeListener = {
 }
 
 local editModeListener = {
-    [Keys.up] = moveCursor;
-    [Keys.down] = moveCursor;
-    [Keys.left] = moveCursor;
-    [Keys.right] = moveCursor;
+    [Keys.up] = updateCursor;
+    [Keys.down] = updateCursor;
+    [Keys.left] = updateCursor;
+    [Keys.right] = updateCursor;
 
     [Keys.lctrl] = function()
         setMode(Modes.view)
@@ -459,7 +479,6 @@ local editModeListener = {
             y = y - 1
         end
         updateScreen()
-        updateCursorPosition()
         dirty = true
     end;
 
@@ -467,9 +486,9 @@ local editModeListener = {
 
         buffer[y] = buffer[y]:sub(1, x - 1) .. char .. buffer[y]:sub(x)
         x = x + 1
-        moveCursor()
         updateLine()
         updateCursorPosition()
+        updateCursor()
         dirty = true
     end
 }
@@ -521,7 +540,6 @@ local holdListener = {
     defaultKey = function()
         setMode(Modes.view)
         updateScreen()
-        updateStatus()
     end
 }
 
@@ -587,8 +605,6 @@ load(filename)
 term.clear()
 
 updateScreen()
-updateStatus()
-updateCursorPosition()
 
 cp.main({
     key = function(keyCode)

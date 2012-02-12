@@ -22,6 +22,10 @@ O       : insert line above cursor
 ^, 0    : ho yo begin of line
 $       : go to end of line
 
+G       : go to last line
+1G      : go to first line
+<n>G    : go to nth line
+
 dd      : delete line
 
 :w      : write file
