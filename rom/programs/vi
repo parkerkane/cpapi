@@ -46,6 +46,7 @@ local x, y = 1, 1
 local scrollX, scrollY = 0, 0
 local cmdPos = 1
 local cmdBuffer = ""
+local repeatCount = 0
 
 local searchString = ""
 local searchPositionX = 0
@@ -88,6 +89,11 @@ local function updateCursorPosition()
 
     term.setCursorBlink(true)
     term.setCursorPos(realX, y - scrollY)
+end
+
+local function setMode(newMode)
+    mode = newMode
+    repeatCount = 0
 end
 
 local function updateStatus()
@@ -143,6 +149,8 @@ local function updateScreen()
             term.write('~')
         end
     end
+
+    updateCursorPosition()
 end
 
 local function moveCursor(key)
@@ -151,26 +159,32 @@ local function moveCursor(key)
         x = math.min(x, buffer[y]:len() + 1)
         x = x - 1
 
-        if x == 0 and y > 1 then
+        if mode == Modes.edit and x == 0 and y > 1 then
             local newy = math.max(1, y - 1)
             x = buffer[newy]:len() + 1
 
             os.queueEvent('key', Keys.up)
+        elseif mode == Modes.view then
+            x = math.max(x, 1)
         end
 
     elseif key == Keys.right or key == 'l' then
         x = x + 1
 
-        if x > buffer[y]:len() + 1 and y ~= #buffer then
+        if mode == Modes.edit and x > buffer[y]:len() + 1 and y ~= #buffer then
             x = 1
             os.queueEvent('key', Keys.down)
+        elseif mode == Modes.view then
+            x = math.min(x, buffer[y]:len() + 1)
         end
 
     elseif key == Keys.up or key == 'k' then
-        y = y - 1
+        y = math.max(1, y - 1)
+        x = math.min(x, buffer[y]:len() + 1)
 
     elseif key == Keys.down or key == 'j' then
         y = math.min(y + 1, #buffer)
+        x = math.min(x, buffer[y]:len() + 1)
     end
 
     local update = false
@@ -191,30 +205,27 @@ local function moveCursor(key)
         update = true
     end
 
-    if y - scrollY < 1 then
+    while y - scrollY < 1 do
 
         scrollY = scrollY - 1
         if scrollY < 0 then scrollY = 0 end
 
-        y = scrollY + 1
         update = true
     end
 
-    if y - scrollY > h - 1 then
+    while y - scrollY > h - 1 do
         scrollY = scrollY + 1
 
         if scrollY > #buffer - h + 1 then
             scrollY = #buffer - h + 1
         end
 
-        y = scrollY + h - 1
         update = true
     end
 
     if update then updateScreen() end
 
     updateStatus()
-    updateCursorPosition()
 end
 
 local function runExCommand(cmd)
@@ -244,12 +255,15 @@ local function runExCommand(cmd)
         term.setCursorPos(1, 1)
         shell.run('/' .. filename)
 
-        mode = Modes.hold
+        setMode(Modes.hold)
         holdMessage = 'Press any key to continue..'
     end
 end
 
 local function doSearch()
+    searchPositionX = x
+    searchPositionY = y
+
     for i = searchPositionY, #buffer do
         local newPos = buffer[i]:find(searchString, searchPositionX + 1, true)
         searchPositionX = 0
@@ -262,64 +276,75 @@ local function doSearch()
             searchPositionY = y
 
             moveCursor()
-            updateCursorPosition()
+            updateScreen()
             return
         end
     end
 
-    term.setCursorPos(1, h)
-    term.clearLine()
-    holdMessage = 'String found.'
-    mode = Modes.hold
+    holdMessage = "String '" .. searchString .. "' not found."
+    setMode(Modes.hold)
+end
+
+local function repeatable(func)
+    local function r(...)
+        local c = math.max(1, repeatCount)
+
+        for i = 1, c do
+            func(...)
+        end
+
+        repeatCount = 0
+    end
+
+    return r
 end
 
 local viewModeListener = {
-    [Keys.up] = moveCursor;
-    [Keys.down] = moveCursor;
-    [Keys.left] = moveCursor;
-    [Keys.right] = moveCursor;
+    [Keys.up] = repeatable(moveCursor);
+    [Keys.down] = repeatable(moveCursor);
+    [Keys.left] = repeatable(moveCursor);
+    [Keys.right] = repeatable(moveCursor);
 
-    h = moveCursor;
-    j = moveCursor;
-    k = moveCursor;
-    l = moveCursor;
+    h = repeatable(moveCursor);
+    j = repeatable(moveCursor);
+    k = repeatable(moveCursor);
+    l = repeatable(moveCursor);
 
     i = function()
-        mode = Modes.edit
+        setMode(Modes.edit)
         updateStatus()
     end;
 
     a = function()
         x = math.min(buffer[y]:len() + 1, x + 1)
-        mode = Modes.edit
+        setMode(Modes.edit)
         updateStatus()
     end;
 
     I = function()
-        mode = Modes.edit
+        setMode(Modes.edit)
         x = 1
         updateStatus()
     end;
 
     A = function()
-        mode = Modes.edit
+        setMode(Modes.edit)
         x = buffer[y]:len() + 1
         updateStatus()
     end;
 
-    o = function()
-        mode = Modes.edit
+    o = repeatable(function()
+        setMode(Modes.edit)
         x = 1
         y = y + 1
         table.insert(buffer, y, "")
         updateStatus()
         updateScreen()
-        updateCursorPosition()
         dirty = true
-    end;
+    end);
 
-    O = function()
-        mode = Modes.edit
+    O = repeatable(function()
+        setMode(Modes.edit)
         x = 1
         y = math.max(1, y - 1)
         table.insert(buffer, y, "")
@@ -327,12 +352,12 @@ local viewModeListener = {
         updateScreen()
         updateCursorPosition()
         dirty = true
-    end;
+    end);
 
     [':'] = function()
         cmdPos = 1
         cmdBuffer = ""
-        mode = Modes.ex
+        setMode(Modes.ex)
         updateStatus()
     end;
 
@@ -347,6 +372,12 @@ local viewModeListener = {
     end;
 
     ['0'] = function()
+
+        if repeatCount > 0 then
+            repeatCount = repeatCount * 10
+            return
+        end
+
         x = 1
         moveCursor()
     end;
@@ -354,7 +385,7 @@ local viewModeListener = {
     ['/'] = function()
         cmdPos = 1
         cmdBuffer = ""
-        mode = Modes.search
+        setMode(Modes.search)
         updateStatus()
     end;
 
@@ -364,22 +395,24 @@ local viewModeListener = {
 
     L = function()
         updateScreen()
-        updateCursorPosition()
     end;
 
     defaultChar = function(char)
 
-        local c = tostring(lastChar)..char
+        local c = tostring(lastChar) .. char
 
         if c == 'dd' then
-            table.remove(buffer, y)
-            y = math.min(y, #buffer)
+            repeatable(function()
+                table.remove(buffer, y)
+                y = math.min(y, #buffer)
+                moveCursor()
+            end)()
             updateScreen()
-            moveCursor()
+        elseif tonumber(char) ~= nil then
+            repeatCount = repeatCount * 10 + tonumber(char)
         end
 
-        lastChar=char
-
+        lastChar = char
     end;
 }
 
@@ -390,12 +423,12 @@ local editModeListener = {
     [Keys.right] = moveCursor;
 
     [Keys.lctrl] = function()
-        mode = Modes.view
+        setMode(Modes.view)
         updateStatus()
     end;
 
     [Keys.rctrl] = function()
-        mode = Modes.view
+        setMode(Modes.view)
         updateStatus()
     end;
 
@@ -409,7 +442,6 @@ local editModeListener = {
         y = y + 1
 
         updateScreen()
-        updateCursorPosition()
         dirty = true
     end;
 
@@ -444,12 +476,12 @@ local editModeListener = {
 
 local exModeListener = {
     [Keys.lctrl] = function()
-        mode = Modes.view
+        setMode(Modes.view)
         updateStatus()
     end;
 
     [Keys.rctrl] = function()
-        mode = Modes.view
+        setMode(Modes.view)
         updateStatus()
     end;
 
@@ -471,7 +503,7 @@ local exModeListener = {
     end;
 
     [Keys.enter] = function()
-        mode = Modes.view
+        setMode(Modes.view)
         runExCommand(cmdBuffer)
         updateStatus()
     end;
@@ -487,7 +519,7 @@ local exModeListener = {
 
 local holdListener = {
     defaultKey = function()
-        mode = Modes.view
+        setMode(Modes.view)
         updateScreen()
         updateStatus()
     end
@@ -495,12 +527,12 @@ local holdListener = {
 
 local searchListener = {
     [Keys.lctrl] = function()
-        mode = Modes.view
+        setMode(Modes.view)
         updateStatus()
     end;
 
     [Keys.rctrl] = function()
-        mode = Modes.view
+        setMode(Modes.view)
         updateStatus()
     end;
 
@@ -522,7 +554,7 @@ local searchListener = {
     end;
 
     [Keys.enter] = function()
-        mode = Modes.view
+        setMode(Modes.view)
 
         searchPositionX = 0
         searchPositionY = 1
@@ -577,6 +609,9 @@ cp.main({
         if func == nil then return end
 
         func(char)
+    end;
+
+    update = function()
     end;
 
     quit = function()
