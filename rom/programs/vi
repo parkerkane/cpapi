@@ -1,36 +1,36 @@
+--[[
+Copyright (c) 2011 Parker Kane <parker@friikz.net>
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+--]]
+
 local tArgs = { ... }
+
+local app = cp.App.new()
 
 if #tArgs == 0 then
     error("Usage: vi <path>")
 end
 
-Keys = {
-    up = 200,
-    down = 208,
-    left = 203,
-    right = 205,
-    lctrl = 29,
-    rctrl = 97,
-    lalt = 56,
-    ralt = 184,
-    lshift = 42,
-    shift = 54,
-    bspace = 14,
-    enter = 28,
-    f1 = 59,
-    f2 = 60,
-    f3 = 61,
-    f4 = 62,
-    f5 = 63,
-    f6 = 64,
-    f7 = 65,
-    f8 = 66,
-    f9 = 67,
-    f10 = 68,
-    tilde = 0,
-}
-
-Modes = { view = 0, edit = 1, ex = 2, search = 3, hold = 4 }
+local Keys = cp.Keys
+local Modes = { view = 0, edit = 1, ex = 2, search = 3, hold = 4 }
 
 local mode = Modes.view;
 
@@ -118,9 +118,9 @@ local function updateStatus()
         updateCursorPosition()
 
     elseif mode == Modes.ex then
-        term.write(': ' .. cmdBuffer)
+        term.write(':' .. cmdBuffer)
 
-        term.setCursorPos(2 + cmdPos, h)
+        term.setCursorPos(1 + cmdPos, h)
 
     elseif mode == Modes.hold then
         term.write(holdMessage)
@@ -184,11 +184,11 @@ local function updateCursor(key)
 
     elseif key == Keys.up or key == 'k' then
         y = math.max(1, y - 1)
-        x = math.min(x, buffer[y]:len() + 1)
+--        x = math.min(x, buffer[y]:len() + 1)
 
     elseif key == Keys.down or key == 'j' then
         y = math.min(y + 1, #buffer)
-        x = math.min(x, buffer[y]:len() + 1)
+--        x = math.min(x, buffer[y]:len() + 1)
     end
 
     local update = false
@@ -286,6 +286,13 @@ local function runExCommand(cmd)
         setMode(Modes.hold)
         holdMessage = 'Press any key to continue..'
 
+    elseif cmd == 'r' then
+        load(filename)
+        x = 1
+        y = 1
+        updateCursor()
+        updateScreen()
+
     elseif tonumber(cmd) ~= nil then
         x = 1
         y = math.min(#buffer, tonumber(cmd))
@@ -293,24 +300,29 @@ local function runExCommand(cmd)
     end
 end
 
-local function doSearch()
+local function doSearch(reverse)
     searchPositionX = x
     searchPositionY = y
 
-    for i = searchPositionY, #buffer do
-        local newPos = buffer[i]:find(searchString, searchPositionX + 1, true)
-        searchPositionX = 0
+    if reverse then
 
-        if newPos ~= nil then
-            x = newPos
-            y = i
+        -- TODO reverse search
+    else
+        for i = searchPositionY, #buffer do
+            local newPos = buffer[i]:find(searchString, searchPositionX + 1, true)
+            searchPositionX = 0
 
-            searchPositionX = x
-            searchPositionY = y
+            if newPos ~= nil then
+                x = newPos
+                y = i
 
-            updateCursor()
-            updateScreen()
-            return
+                searchPositionX = x
+                searchPositionY = y
+
+                updateCursor()
+                updateScreen()
+                return
+            end
         end
     end
 
@@ -458,6 +470,26 @@ local viewModeListener = {
         updateCursor(true)
     end);
 
+    U = function()
+        y = math.max(1, y - math.floor(h / 2))
+        updateCursor()
+    end;
+
+    D = function()
+        y = math.min(#buffer, y + math.floor(h / 2))
+        updateCursor()
+    end;
+
+    B = function()
+        y = math.max(1, y - h - 1)
+        updateCursor()
+    end;
+
+    F = function()
+        y = math.min(#buffer, y + h - 1)
+        updateCursor()
+    end;
+
     defaultChar = function(char)
 
         local c = tostring(lastChar) .. char
@@ -524,6 +556,17 @@ local editModeListener = {
             y = y - 1
         end
         updateScreen()
+        dirty = true
+    end;
+
+    [Keys.tab] = function()
+
+        buffer[y] = buffer[y]:sub(1, x - 1) .. "  " .. buffer[y]:sub(x)
+
+        x = x + 2
+        updateLine()
+        updateCursorPosition()
+        updateCursor()
         dirty = true
     end;
 
@@ -651,7 +694,7 @@ term.clear()
 
 updateScreen()
 
-cp.main({
+app:main({
     key = function(keyCode)
         local listener = allListeners[mode]
         if listener == null then return end
