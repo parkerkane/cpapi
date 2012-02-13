@@ -152,7 +152,6 @@ function App:main(listener)
 
         elseif evt == 'timer' then
             eventHandled = self:handleTimer(args[1])
-
         end
 
         if not eventHandled and listener ~= nil then
@@ -171,7 +170,7 @@ function App:main(listener)
                 error("Error handing event '" .. evt .. "':\n - " .. tostring(err))
             end
         end
-    until quit
+        until quit
 end
 
 local default = App.new()

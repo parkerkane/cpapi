@@ -1,0 +1,148 @@
+--[[
+Copyright (c) 2012 Parker Kane <parker@friikz.net>
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+--]]
+
+local bits = {}
+
+for i = 0, 0xFF do
+    local b = {}
+
+    while #b < 8 do
+        table.insert(b, (i % 2) == 1)
+        i = math.floor(i / 2)
+    end
+
+    table.insert(bits, b)
+end
+
+local mmod = math.fmod
+local mfloor = math.floor
+
+local function cap(a)
+    return mmod(a, 0x100000000)
+end
+
+function bnot(a)
+    return 0xFFFFFFFF - cap(a)
+end
+
+function lshift(x, n)
+    return cap(cap(x) * 2 ^ n)
+end
+
+function rshift(x, n)
+    return mfloor(cap(x) / 2 ^ n)
+end
+
+function band(a, b)
+
+    local r = 0
+    local c = 1
+
+    while a > 0 or b > 0 do
+
+        local ab = bits[mmod(a, 0x100) + 1]
+        local bb = bits[mmod(b, 0x100) + 1]
+
+        for i = 1, 8 do
+
+            if ab[i] and bb[i] then
+                r = r + c
+            end
+
+            c = c + c
+        end
+
+        a = rshift(a, 8)
+        b = rshift(b, 8)
+    end
+
+    return r
+end
+
+function bor(a, b)
+    local r = 0
+    local c = 1
+
+    while a > 0 or b > 0 do
+
+        local ab = bits[mmod(a, 0x100) + 1]
+        local bb = bits[mmod(b, 0x100) + 1]
+
+        for i = 1, 8 do
+
+            if ab[i] or bb[i] then
+                r = r + c
+            end
+
+            c = c + c
+        end
+
+        a = rshift(a, 8)
+        b = rshift(b, 8)
+    end
+
+    return r
+end
+
+function bxor(a, b)
+    local r = 0
+    local c = 1
+
+    while a > 0 or b > 0 do
+
+        local ab = bits[mmod(a, 0x100) + 1]
+        local bb = bits[mmod(b, 0x100) + 1]
+
+        for i = 1, 8 do
+
+            if ab[i] ~= bb[i] then
+                r = r + c
+            end
+
+            c = c + c
+        end
+
+        a = rshift(a, 8)
+        b = rshift(b, 8)
+    end
+
+    return r
+end
+
+function bxor2(a, b)
+    local rhs = bor(bnot(a), bnot(b))
+    local lhs = bor(a, b)
+    local rslt = band(lhs, rhs)
+    return rslt
+end
+
+--[[
+for i = 1, 1000 do
+    for j = 1, 1000 do
+        if bxor(i, j) ~= bxor2(i, j) then
+            print(i,j,bxor(i,j), bxor2(i,j))
+            error('error')
+        end
+    end
+end
+--]]
