@@ -19,6 +19,8 @@ A       : append at end of line
 o       : insert line bellow cursor
 O       : insert line above cursor
 
+u       : undo
+
 yy, Y   : copy line to buffer
 p, P    : past line from buffer
 

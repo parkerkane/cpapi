@@ -61,6 +61,8 @@ local dirty = false
 
 local buffer = {}
 local yankBuffer = {}
+local undoBuffer = {}
+local snapshotData = {}
 
 local function cloneTable(t)
     local u = {}
@@ -70,6 +72,7 @@ end
 
 local function load(filename)
     buffer = {}
+    undoBuffer = {}
 
     if fs.exists(filename) then
         local file = io.open(filename)
@@ -102,11 +105,6 @@ local function updateCursorPosition()
     term.setCursorPos(realX, y - scrollY)
 end
 
-local function setMode(newMode)
-    mode = newMode
-    repeatCount = 0
-end
-
 local function updateStatus()
 
     term.setCursorPos(1, h)
@@ -119,6 +117,7 @@ local function updateStatus()
         term.write('L' .. y .. ' C' .. realX)
 
         term.write(' Y' .. #yankBuffer)
+        term.write(' U' .. #undoBuffer)
 
         if mode == Modes.edit then
             term.setCursorPos(w - 15, h)
@@ -194,11 +193,11 @@ local function updateCursor(key)
 
     elseif key == Keys.up or key == 'k' then
         y = math.max(1, y - 1)
---        x = math.min(x, buffer[y]:len() + 1)
+        --        x = math.min(x, buffer[y]:len() + 1)
 
     elseif key == Keys.down or key == 'j' then
         y = math.min(y + 1, #buffer)
---        x = math.min(x, buffer[y]:len() + 1)
+        --        x = math.min(x, buffer[y]:len() + 1)
     end
 
     local update = false
@@ -266,6 +265,54 @@ local function pasteYank()
         table.insert(buffer, y + i, line)
     end)
 end
+
+local function snapshot_begin()
+    if dirty then return end
+
+    dirty = true
+
+    snapshotData = {
+        x = x,
+        y = y,
+        buffer = cloneTable(buffer)
+    }
+end
+
+local function snapshot()
+
+    table.insert(undoBuffer, snapshotData)
+
+    while #undoBuffer > 100 do
+        table.remove(undoBuffer, 0)
+    end
+end
+
+local function undo()
+    if #undoBuffer == 0 then return end
+
+    local data = table.remove(undoBuffer, #undoBuffer)
+
+    buffer = data.buffer
+
+    x = data.x
+    y = data.y
+
+    updateScreen()
+end
+
+local function setMode(newMode)
+    mode = newMode
+    repeatCount = 0
+    lastChar = nil
+
+    if mode == Modes.view and dirty then
+
+        snapshot()
+
+        dirty = false
+    end
+end
+
 
 local function runExCommand(cmd)
     if cmd == 'q' then
@@ -341,7 +388,7 @@ local function doSearch(reverse)
 end
 
 local function repeatable(func)
-    local function r(...)
+    local function repeatFunc(...)
         local c = math.max(1, repeatCount)
 
         for i = 1, c do
@@ -351,7 +398,7 @@ local function repeatable(func)
         repeatCount = 0
     end
 
-    return r
+    return repeatFunc
 end
 
 local viewModeListener = {
@@ -389,21 +436,20 @@ local viewModeListener = {
     end;
 
     o = repeatable(function()
+        snapshot_begin()
         setMode(Modes.edit)
         x = 1
         y = y + 1
         table.insert(buffer, y, "")
         updateScreen()
-        dirty = true
     end);
 
     O = repeatable(function()
+        snapshot_begin()
         setMode(Modes.edit)
         x = 1
-        y = math.max(1, y - 1)
         table.insert(buffer, y, "")
         updateScreen()
-        dirty = true
     end);
 
     [':'] = function()
@@ -470,12 +516,14 @@ local viewModeListener = {
     end;
 
     p = repeatable(function()
+        snapshot_begin()
         pasteYank()
         y = y + #yankBuffer
-        updateCursor(true)
+        updateScreen(true)
     end);
 
     P = repeatable(function()
+        snapshot_begin()
         pasteYank()
         updateCursor(true)
     end);
@@ -500,12 +548,17 @@ local viewModeListener = {
         updateCursor()
     end;
 
+    u = repeatable(function()
+        undo()
+    end);
+
     defaultChar = function(char)
 
         local c = tostring(lastChar) .. char
 
         if c == 'dd' then
             repeatable(function()
+                snapshot_begin()
                 table.remove(buffer, y)
                 y = math.min(y, #buffer)
                 updateCursor(true)
@@ -540,6 +593,7 @@ local editModeListener = {
     end;
 
     [Keys.enter] = function()
+        snapshot_begin()
         local line = buffer[y]
 
         buffer[y] = buffer[y]:sub(1, x - 1)
@@ -549,10 +603,10 @@ local editModeListener = {
         y = y + 1
 
         updateScreen()
-        dirty = true
     end;
 
     [Keys.bspace] = function()
+        snapshot_begin()
 
         if x > 1 then
             x = x - 1
@@ -566,10 +620,10 @@ local editModeListener = {
             y = y - 1
         end
         updateScreen()
-        dirty = true
     end;
 
     [Keys.tab] = function()
+        snapshot_begin()
 
         buffer[y] = buffer[y]:sub(1, x - 1) .. "  " .. buffer[y]:sub(x)
 
@@ -577,17 +631,16 @@ local editModeListener = {
         updateLine()
         updateCursorPosition()
         updateCursor()
-        dirty = true
     end;
 
     defaultChar = function(char)
+        snapshot_begin()
 
         buffer[y] = buffer[y]:sub(1, x - 1) .. char .. buffer[y]:sub(x)
         x = x + 1
         updateLine()
         updateCursorPosition()
         updateCursor()
-        dirty = true
     end
 }
 
@@ -725,7 +778,13 @@ app:main({
         func(char)
     end;
 
-    update = function()
+    postevent = function()
+
+        if mode == Modes.view and dirty then
+            snapshot()
+            updateStatus()
+            dirty = false
+        end
     end;
 
     quit = function()

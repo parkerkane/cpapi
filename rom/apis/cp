@@ -94,6 +94,10 @@ Examples:
 --]]
 function App:handleTimer(timer)
 
+    if timer.cancel == true then
+        return
+    end
+
     local func = self.laterFuncs[timer]
 
     if func ~= nil then
@@ -155,18 +159,24 @@ function App:main(listener)
         end
 
         if not eventHandled and listener ~= nil then
-            local status, err
-            local called = true
+            local status = true
+            local err
 
-            if listener[evt] ~= nil then
-                status, err = pcall(listener[evt], unpack(args))
-            elseif listener.default ~= nil then
-                status, err = pcall(listener.default, evt, unpack(args))
-            else
-                called = false
+            if listener.preEvent ~= nil then
+                status, err = pcall(listener.preevent, evt, unpack(args))
             end
 
-            if not status and called then
+            if status and listener[evt] ~= nil then
+                status, err = pcall(listener[evt], unpack(args))
+            elseif status and listener.default ~= nil then
+                status, err = pcall(listener.default, evt, unpack(args))
+            end
+
+            if status and listener.postevent ~= nil then
+                status, err = pcall(listener.postevent, evt, unpack(args))
+            end
+
+            if not status then
                 error("Error handing event '" .. evt .. "':\n - " .. tostring(err))
             end
         end
