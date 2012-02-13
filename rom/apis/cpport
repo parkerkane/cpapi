@@ -1,0 +1,89 @@
+--[[
+Copyright (c) 2012 Parker Kane <parker@friikz.net>
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+--]]
+if cpbit == nil then
+    cpbit = bit
+end
+
+Port = {}
+
+local PortMT = {}
+
+PortMT.__index = Port
+
+function open(side)
+    local self = {}
+
+    self.outBits = 0
+    self.inBits = 0
+    self.side = side
+
+    local ins = setmetatable(self, PortMT)
+
+    return ins
+end
+
+function Port:set(...)
+
+    local bits = { ... }
+
+    if #bits == 0 then
+        rs.setOutput(self.side, true)
+        return
+    end
+
+    table.foreach(bits, function(idx, val)
+        self.outBits = cpbit.bor(self.outBits, val)
+    end)
+
+    rs.setBundledOutput(self.side, self.outBits)
+end
+
+function Port:clear(...)
+    local bits = { ... }
+    local cbits = 0
+
+    if #bits == 0 then
+        rs.setOutput(self.side, false)
+        return
+    end
+
+    table.foreach(bits, function(idx, val)
+        cbits = cpbit.bor(cbits, val)
+    end)
+
+    self.outBits = cpbit.band(self.outBits, cpbit.bnot(cbits))
+
+    rs.setBundledOutput(self.side, self.outBits)
+end
+
+function Port:test(bit)
+    if bit == nil then
+        return rs.getInput(self.side)
+    else
+        return cpbit.band(rs.getBundledInput(self.side), bit) == bit
+    end
+end
+
+function Port:testOut(bit)
+    return cpbit.band(self.outBits, bit) == bit
+end
