@@ -21,6 +21,10 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 --]]
 
+if cp == nil then
+    error('Requires ComputerPark API to run')
+end
+
 local tArgs = { ... }
 
 local app = cp.App.new()
