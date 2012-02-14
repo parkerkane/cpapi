@@ -175,7 +175,6 @@ function App:main(listener)
 
             elseif status and listener.default ~= nil then
                 status, err = pcall(listener.default, evt, unpack(args))
-
             end
 
             if status and listener.post_event ~= nil then
@@ -229,23 +228,31 @@ function band(a, b)
 
     local r = 0
     local c = 1
+    local p = 1
+
+    a, b = cap(a), cap(b)
 
     while a > 0 or b > 0 do
 
-        local ab = bits[mmod(a, 0x100) + 1]
-        local bb = bits[mmod(b, 0x100) + 1]
+        local ab = bits[(a % 0x100) + 1]
+        local bb = bits[(b % 0x100) + 1]
 
-        for i = 1, 8 do
+        c = 0
 
-            if ab[i] and bb[i] then
-                r = r + c
-            end
+        if ab[1] and bb[1] then c = c + 1 end
+        if ab[2] and bb[2] then c = c + 2 end
+        if ab[3] and bb[3] then c = c + 4 end
+        if ab[4] and bb[4] then c = c + 8 end
+        if ab[5] and bb[5] then c = c + 16 end
+        if ab[6] and bb[6] then c = c + 32 end
+        if ab[7] and bb[7] then c = c + 64 end
+        if ab[8] and bb[8] then c = c + 128 end
 
-            c = c + c
-        end
+        r = r + c * p
 
-        a = brshift(a, 8)
-        b = brshift(b, 8)
+        a = mfloor(a / 0x100)
+        b = mfloor(b / 0x100)
+        p = p * 0x100
     end
 
     return r
@@ -254,23 +261,31 @@ end
 function bor(a, b)
     local r = 0
     local c = 1
+    local p = 1
+
+    a, b = cap(a), cap(b)
 
     while a > 0 or b > 0 do
 
-        local ab = bits[mmod(a, 0x100) + 1]
-        local bb = bits[mmod(b, 0x100) + 1]
+        local ab = bits[(a % 0x100) + 1]
+        local bb = bits[(b % 0x100) + 1]
 
-        for i = 1, 8 do
+        c = 0
 
-            if ab[i] or bb[i] then
-                r = r + c
-            end
+        if ab[1] or bb[1] then c = c + 1 end
+        if ab[2] or bb[2] then c = c + 2 end
+        if ab[3] or bb[3] then c = c + 4 end
+        if ab[4] or bb[4] then c = c + 8 end
+        if ab[5] or bb[5] then c = c + 16 end
+        if ab[6] or bb[6] then c = c + 32 end
+        if ab[7] or bb[7] then c = c + 64 end
+        if ab[8] or bb[8] then c = c + 128 end
 
-            c = c + c
-        end
+        r = r + c * p
 
-        a = brshift(a, 8)
-        b = brshift(b, 8)
+        a = mfloor(a / 0x100)
+        b = mfloor(b / 0x100)
+        p = p * 0x100
     end
 
     return r
@@ -279,23 +294,31 @@ end
 function bxor(a, b)
     local r = 0
     local c = 1
+    local p = 1
+
+    a, b = cap(a), cap(b)
 
     while a > 0 or b > 0 do
 
-        local ab = bits[mmod(a, 0x100) + 1]
-        local bb = bits[mmod(b, 0x100) + 1]
+        local ab = bits[(a % 0x100) + 1]
+        local bb = bits[(b % 0x100) + 1]
 
-        for i = 1, 8 do
+        c = 0
 
-            if ab[i] ~= bb[i] then
-                r = r + c
-            end
+        if ab[1] ~= bb[1] then c = c + 1 end
+        if ab[2] ~= bb[2] then c = c + 2 end
+        if ab[3] ~= bb[3] then c = c + 4 end
+        if ab[4] ~= bb[4] then c = c + 8 end
+        if ab[5] ~= bb[5] then c = c + 16 end
+        if ab[6] ~= bb[6] then c = c + 32 end
+        if ab[7] ~= bb[7] then c = c + 64 end
+        if ab[8] ~= bb[8] then c = c + 128 end
 
-            c = c + c
-        end
+        r = r + c * p
 
-        a = brshift(a, 8)
-        b = brshift(b, 8)
+        a = mfloor(a / 0x100)
+        b = mfloor(b / 0x100)
+        p = p * 0x100
     end
 
     return r
@@ -307,6 +330,19 @@ function bxor2(a, b)
     local rslt = band(lhs, rhs)
     return rslt
 end
+
+--[[
+
+for i = 0, 1000 do
+    for j = 0, 1000 do
+        if bxor(i, j) ~= bxor2(i, j) then
+            print(i, j, bxor(i, j), bxor2(i, j))
+            error("error while testing xor.")
+        end
+    end
+end
+
+--]]
 
 ---------------------------------------------------------------------
 --- Port library
@@ -438,7 +474,7 @@ Sends log message to remote computer.
 > cp.log('foobar')
 --]]
 function log(...)
-    local arg = {...}
+    local arg = { ... }
 
     local msg = table.concat(arg, ' ')
 
@@ -447,7 +483,6 @@ function log(...)
     else
         rednet.send(logTarget, msg)
     end
-
 end
 
 local default = App.new()
