@@ -34,7 +34,14 @@ if #tArgs == 0 then
 end
 
 local Keys = cp.Keys
-local Modes = { view = 0, edit = 1, ex = 2, search = 3, hold = 4 }
+local Modes = {
+    view = 0,
+    edit = 1,
+    ex = 2,
+    search = 3,
+    searchReverse = 4,
+    hold = 5
+}
 
 local mode = Modes.view;
 
@@ -63,6 +70,21 @@ local buffer = {}
 local yankBuffer = {}
 local undoBuffer = {}
 local snapshotData = {}
+
+--[[ Helpef functions ]] --
+
+local function _find_all(s, sub, first, last)
+    local i1, i2 = find(s, sub, first, true)
+    local res
+    local k = 0
+    while i1 do
+        res = i1
+        k = k + 1
+        i1, i2 = find(s, sub, i2 + 1, true)
+        if last and i1 > last then break end
+    end
+    return res, k
+end
 
 local function cloneTable(t)
     local u = {}
@@ -96,6 +118,40 @@ local function save(filename)
         file:close()
     end
 end
+
+local function repeatable(func)
+    local function repeatFunc(...)
+        local c = math.max(1, repeatCount)
+
+        for i = 1, c do
+            func(...)
+        end
+
+        repeatCount = 0
+    end
+
+    return repeatFunc
+end
+
+-- Copied from penlight lua library
+local sfind = string.find
+local function rfind(s, sub, first, last)
+    local i1, i2 = sfind(s, sub, first, true)
+
+    if last and i1 and i1 > last then return nil, 0 end
+
+    local res
+    local k = 0
+    while i1 do
+        res = i1
+        k = k + 1
+        i1, i2 = sfind(s, sub, i2 + 1, true)
+        if last and i1 and i1 > last then break end
+    end
+    return res, k
+end
+
+--[[ Screen updating functions ]] --
 
 local function updateCursorPosition()
 
@@ -136,6 +192,10 @@ local function updateStatus()
 
     elseif mode == Modes.search then
         term.write('/' .. cmdBuffer)
+
+        term.setCursorPos(1 + cmdPos, h)
+    elseif mode == Modes.searchReverse then
+        term.write('?' .. cmdBuffer)
 
         term.setCursorPos(1 + cmdPos, h)
     end
@@ -245,6 +305,8 @@ local function updateCursor(key)
     end
 end
 
+--[[ Copy to buffer ]] --
+
 local function yank()
     yankBuffer = {}
     repeatCount = math.max(1, repeatCount)
@@ -258,6 +320,8 @@ local function yank()
     repeatCount = 0
 end
 
+--[[ Paste from buffer ]] --
+
 local function pasteYank()
     local i = 0
 
@@ -265,6 +329,8 @@ local function pasteYank()
         table.insert(buffer, y + i, line)
     end)
 end
+
+--[[ Undo functions ]] --
 
 local function snapshot_begin()
     if dirty then return end
@@ -300,6 +366,8 @@ local function undo()
     updateScreen()
 end
 
+--[[ Misc functions ]] --
+
 local function setMode(newMode)
     mode = newMode
     repeatCount = 0
@@ -312,7 +380,6 @@ local function setMode(newMode)
         dirty = false
     end
 end
-
 
 local function runExCommand(cmd)
     if cmd == 'q' then
@@ -357,13 +424,32 @@ local function runExCommand(cmd)
     end
 end
 
+--[[ Searching ]] --
+
 local function doSearch(reverse)
     searchPositionX = x
     searchPositionY = y
 
     if reverse then
 
-        -- TODO reverse search
+        for i = searchPositionY, 1, -1 do
+
+            local newPos = rfind(buffer[i], searchString, 0, searchPositionX - 1)
+            searchPositionX = 0xFFFF
+
+            if newPos ~= nil then
+                x = newPos
+                y = i
+
+                searchPositionX = x
+                searchPositionY = y
+
+                updateCursor()
+                updateScreen()
+                return
+            end
+        end
+
     else
         for i = searchPositionY, #buffer do
             local newPos = buffer[i]:find(searchString, searchPositionX + 1, true)
@@ -387,19 +473,7 @@ local function doSearch(reverse)
     setMode(Modes.hold)
 end
 
-local function repeatable(func)
-    local function repeatFunc(...)
-        local c = math.max(1, repeatCount)
-
-        for i = 1, c do
-            func(...)
-        end
-
-        repeatCount = 0
-    end
-
-    return repeatFunc
-end
+--[[ Event listeners ]] --
 
 local viewModeListener = {
     [Keys.up] = repeatable(updateCursor);
@@ -487,8 +561,19 @@ local viewModeListener = {
         updateStatus()
     end;
 
+    ['?'] = function()
+        cmdPos = 1
+        cmdBuffer = ""
+        setMode(Modes.searchReverse)
+        updateStatus()
+    end;
+
     n = function()
         doSearch()
+    end;
+
+    N = function()
+        doSearch(true)
     end;
 
     L = function()
@@ -723,13 +808,14 @@ local searchListener = {
     end;
 
     [Keys.enter] = function()
+        local oldMode = mode
         setMode(Modes.view)
 
         searchPositionX = 0
         searchPositionY = 1
         searchString = cmdBuffer
 
-        doSearch()
+        doSearch(oldMode == Modes.searchReverse)
 
         updateStatus()
     end;
@@ -748,13 +834,14 @@ local allListeners = {
     [Modes.edit] = editModeListener,
     [Modes.ex] = exModeListener,
     [Modes.search] = searchListener,
+    [Modes.searchReverse] = searchListener,
     [Modes.hold] = holdListener,
 }
 
+--[[ Main ]] --
+
 load(filename)
-
 term.clear()
-
 updateScreen()
 
 app:main({

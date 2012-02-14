@@ -7,8 +7,11 @@ Ctrl key emulates ESC.
 left,right,up,down : move cursor
 h,j,k,l : move cursor
 
-/search : searchs string
-n       : searchs same string again
+/search : search string
+n       : search same string again
+
+?search : reverse search string
+N       : reverse search same string again
 
 i       : insert
 I       : insert at start of line
