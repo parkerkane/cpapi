@@ -149,8 +149,8 @@ function App:main(listener)
     repeat
         local eventHandled = false
 
-        args = { os.pullEventRaw() }
-        evt = table.remove(args, 1);
+        local args = { os.pullEventRaw() }
+        local evt = table.remove(args, 1);
 
         if evt == 'terminate' then
             error('Terminate')
