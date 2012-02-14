@@ -183,6 +183,140 @@ function App:main(listener)
         until quit
 end
 
+Port = {}
+
+local PortMT = {}
+
+PortMT.__index = Port
+
+--[[
+Opens port
+
+> local port = cp.portOpen('back')
+--]]
+function portOpen(side)
+    local self = {}
+
+    self.outBits = 0
+    self.inBits = 0
+    self.side = side
+
+    local ins = setmetatable(self, PortMT)
+
+    return ins
+end
+
+--[[
+Set signal enabled.
+
+Redstone:
+> port:set()
+
+Bundled:
+> port:set(colors.white, colors.red)
+--]]
+function Port:set(...)
+
+    local bits = { ... }
+
+    if #bits == 0 then
+        rs.setOutput(self.side, true)
+        return
+    end
+
+    table.foreach(bits, function(idx, val)
+        self.outBits = cpbit.bor(self.outBits, val)
+    end)
+
+    rs.setBundledOutput(self.side, self.outBits)
+end
+
+--[[
+Clears signal.
+
+Redstone:
+> port:clear()
+
+Bundled:
+> port:clear(colors.green, colors.blue)
+--]]
+function Port:clear(...)
+    local bits = { ... }
+    local cbits = 0
+
+    if #bits == 0 then
+        rs.setOutput(self.side, false)
+        return
+    end
+
+    table.foreach(bits, function(idx, val)
+        cbits = cpbit.bor(cbits, val)
+    end)
+
+    self.outBits = cpbit.band(self.outBits, cpbit.bnot(cbits))
+
+    rs.setBundledOutput(self.side, self.outBits)
+end
+
+--[[
+Test input signal.
+
+Redstone:
+> port:test()
+
+Bundled:
+> port:test(colors.yellow)
+--]]
+function Port:test(bit)
+    if bit == nil then
+        return rs.getInput(self.side)
+    else
+        return cpbit.band(rs.getBundledInput(self.side), bit) == bit
+    end
+end
+
+--[[
+Test output signal.
+
+Bundled:
+> port:testOut(colors.gray)
+--]]
+function Port:testOut(bit)
+    return cpbit.band(self.outBits, bit) == bit
+end
+
+local logTarget
+
+--[[
+Initializes remote logger.
+
+> cp.logInit('back')
+or
+> cp.logInit('back', remoteComputerID)
+--]]
+function logInit(side, target)
+    rednet.open(side)
+    logTarget = target
+end
+
+--[[
+Sends log message to remote computer.
+
+> cp.log('foobar')
+--]]
+function log(...)
+    local arg = {...}
+
+    local msg = table.concat(arg, ' ')
+
+    if logTarget == nil then
+        rednet.broadcast(msg)
+    else
+        rednet.send(logTarget, msg)
+    end
+
+end
+
 local default = App.new()
 
 function callLater(...) return default:callLater(...) end

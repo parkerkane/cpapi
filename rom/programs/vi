@@ -135,7 +135,7 @@ end
 
 -- Copied from penlight lua library
 local sfind = string.find
-local function rfind(s, sub, first, last)
+local function string_rfind(s, sub, first, last)
     local i1, i2 = sfind(s, sub, first, true)
 
     if last and i1 and i1 > last then return nil, 0 end
@@ -434,7 +434,7 @@ local function doSearch(reverse)
 
         for i = searchPositionY, 1, -1 do
 
-            local newPos = rfind(buffer[i], searchString, 0, searchPositionX - 1)
+            local newPos = string_rfind(buffer[i], searchString, 0, searchPositionX - 1)
             searchPositionX = 0xFFFF
 
             if newPos ~= nil then

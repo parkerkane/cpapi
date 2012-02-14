@@ -1,6 +1,5 @@
 cp.callLater(timeout, function)
-
-function foo() print('bar') end
+> function foo() print('bar') end
 > cp.callLater(5, foo)
 > cp.callLater(1, function() rs.setOutput('back', false) end)
 
@@ -18,3 +17,16 @@ cp.main(listener)
 >        print('default:', a,b,c,d)
 >   end
 >})
+
+port = cp.portOpen(side)
+
+Redstone:
+> port:set()
+> port:clear()
+> port:test()
+
+Bundle:
+> port:set(bit[, bit[, ...]])
+> port:clear(bit[, bit[, ...]])
+> port:test(bit)
+> port:testOut(bit)
