@@ -1,14 +1,14 @@
-cp.callLater(timeout, function)
+computerpark.callLater(timeout, function)
 > function foo() print('bar') end
-> cp.callLater(5, foo)
-> cp.callLater(1, function() rs.setOutput('back', false) end)
+> computerpark.callLater(5, foo)
+> computerpark.callLater(1, function() rs.setOutput('back', false) end)
 
-cp.handleTimer(timer)
+computerpark.handleTimer(timer)
 > evt, arg = os.pullEvent()
 > if evt == 'timer' then handleTimer(arg) end
 
-cp.main(listener)
-> cp.main({
+computerpark.main(listener)
+> computerpark.main({
 >    key = function(code)
 >        print('key:', key)
 >    end;
@@ -20,7 +20,7 @@ cp.main(listener)
 
 ---
 
-port = cp.openPort(side)
+port = computerpark.openPort(side)
 
 Redstone:
 > port:set()
@@ -35,12 +35,12 @@ Bundle:
 
 ---
 
-cp.initLog(side, targetID)
-cp.log(message)
+computerpark.initLog(side, targetID)
+computerpark.log(message)
 
 ---
 
-cp.bnot(a)
-cp.bor(a,b)
-cp.band(a,b)
-cp.bxor(a,b)
+computerpark.bnot(a)
+computerpark.bor(a,b)
+computerpark.band(a,b)
+computerpark.bxor(a,b)
