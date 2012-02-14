@@ -205,11 +205,11 @@ local PortMT = {}
 PortMT.__index = Port
 
 --[[
-Opens port
+Opens port to handle signals.
 
-> local port = cp.portOpen('back')
+> local port = cp.openPort('back')
 --]]
-function portOpen(side)
+function openPort(side)
     local self = {}
 
     self.outBits = 0
@@ -309,11 +309,11 @@ local logTarget
 --[[
 Initializes remote logger.
 
-> cp.logInit('back')
+> cp.initLog('back')
 or
-> cp.logInit('back', remoteComputerID)
+> cp.initLog('back', remoteComputerID)
 --]]
-function logInit(side, target)
+function initLog(side, target)
     rednet.open(side)
     logTarget = target
 end

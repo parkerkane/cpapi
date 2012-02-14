@@ -20,7 +20,7 @@ cp.main(listener)
 
 ---
 
-port = cp.portOpen(side)
+port = cp.openPort(side)
 
 Redstone:
 > port:set()
@@ -35,5 +35,5 @@ Bundle:
 
 ---
 
-cp.logInit(side, targetID)
+cp.initLog(side, targetID)
 cp.log(message)
