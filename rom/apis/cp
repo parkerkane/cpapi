@@ -109,7 +109,7 @@ function App:handleTimer(timer)
         if not status then
             error('Error calling timed function:\n - ' .. tostring(err))
         end
-        self.laterFuncs[args] = nil
+        self.laterFuncs[timer] = nil
         return true
     end
 
