@@ -37,3 +37,10 @@ Bundle:
 
 cp.initLog(side, targetID)
 cp.log(message)
+
+---
+
+cp.bnot(a)
+cp.bor(a,b)
+cp.band(a,b)
+cp.bxor(a,b)

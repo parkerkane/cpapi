@@ -190,13 +190,127 @@ function App:main(listener)
 end
 
 ---------------------------------------------------------------------
---- Port library
+--- Bitwise library
 ------
 
-if cpbit == nil then
-    -- cpbit api is not installed. Use default one.
-    cpbit = bit
+local bits = {}
+
+for i = 0, 0xFF do
+    local b = {}
+
+    while #b < 8 do
+        table.insert(b, (i % 2) == 1)
+        i = math.floor(i / 2)
+    end
+
+    table.insert(bits, b)
 end
+
+local mmod = math.fmod
+local mfloor = math.floor
+
+local function cap(a)
+    return mmod(a, 0x100000000)
+end
+
+function bnot(a)
+    return 0xFFFFFFFF - cap(a)
+end
+
+function blshift(a, n)
+    return cap(cap(a) * 2 ^ n)
+end
+
+function brshift(a, n)
+    return mfloor(cap(a) / 2 ^ n)
+end
+
+function band(a, b)
+
+    local r = 0
+    local c = 1
+
+    while a > 0 or b > 0 do
+
+        local ab = bits[mmod(a, 0x100) + 1]
+        local bb = bits[mmod(b, 0x100) + 1]
+
+        for i = 1, 8 do
+
+            if ab[i] and bb[i] then
+                r = r + c
+            end
+
+            c = c + c
+        end
+
+        a = brshift(a, 8)
+        b = brshift(b, 8)
+    end
+
+    return r
+end
+
+function bor(a, b)
+    local r = 0
+    local c = 1
+
+    while a > 0 or b > 0 do
+
+        local ab = bits[mmod(a, 0x100) + 1]
+        local bb = bits[mmod(b, 0x100) + 1]
+
+        for i = 1, 8 do
+
+            if ab[i] or bb[i] then
+                r = r + c
+            end
+
+            c = c + c
+        end
+
+        a = brshift(a, 8)
+        b = brshift(b, 8)
+    end
+
+    return r
+end
+
+function bxor(a, b)
+    local r = 0
+    local c = 1
+
+    while a > 0 or b > 0 do
+
+        local ab = bits[mmod(a, 0x100) + 1]
+        local bb = bits[mmod(b, 0x100) + 1]
+
+        for i = 1, 8 do
+
+            if ab[i] ~= bb[i] then
+                r = r + c
+            end
+
+            c = c + c
+        end
+
+        a = brshift(a, 8)
+        b = brshift(b, 8)
+    end
+
+    return r
+end
+
+function bxor2(a, b)
+    local rhs = bor(bnot(a), bnot(b))
+    local lhs = bor(a, b)
+    local rslt = band(lhs, rhs)
+    return rslt
+end
+
+---------------------------------------------------------------------
+--- Port library
+------
 
 Port = {}
 
@@ -240,7 +354,7 @@ function Port:set(...)
     end
 
     table.foreach(bits, function(idx, val)
-        self.outBits = cpbit.bor(self.outBits, val)
+        self.outBits = bor(self.outBits, val)
     end)
 
     rs.setBundledOutput(self.side, self.outBits)
@@ -265,10 +379,10 @@ function Port:clear(...)
     end
 
     table.foreach(bits, function(idx, val)
-        cbits = cpbit.bor(cbits, val)
+        cbits = bor(cbits, val)
     end)
 
-    self.outBits = cpbit.band(self.outBits, cpbit.bnot(cbits))
+    self.outBits = band(self.outBits, bnot(cbits))
 
     rs.setBundledOutput(self.side, self.outBits)
 end
@@ -286,7 +400,7 @@ function Port:test(bit)
     if bit == nil then
         return rs.getInput(self.side)
     else
-        return cpbit.band(rs.getBundledInput(self.side), bit) == bit
+        return band(rs.getBundledInput(self.side), bit) == bit
     end
 end
 
@@ -297,7 +411,7 @@ Bundled:
 > port:testOut(colors.gray)
 --]]
 function Port:testOut(bit)
-    return cpbit.band(self.outBits, bit) == bit
+    return band(self.outBits, bit) == bit
 end
 
 ---------------------------------------------------------------------
