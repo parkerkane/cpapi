@@ -166,18 +166,20 @@ function App:main(listener)
             local status = true
             local err
 
-            if listener.preEvent ~= nil then
-                status, err = pcall(listener.preevent, evt, unpack(args))
+            if listener.pre_event ~= nil then
+                status, err = pcall(listener.pre_event, evt, unpack(args))
             end
 
             if status and listener[evt] ~= nil then
                 status, err = pcall(listener[evt], unpack(args))
+
             elseif status and listener.default ~= nil then
                 status, err = pcall(listener.default, evt, unpack(args))
+
             end
 
-            if status and listener.postevent ~= nil then
-                status, err = pcall(listener.postevent, evt, unpack(args))
+            if status and listener.post_event ~= nil then
+                status, err = pcall(listener.post_event, evt, unpack(args))
             end
 
             if not status then

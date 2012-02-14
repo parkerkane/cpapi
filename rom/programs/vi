@@ -865,7 +865,7 @@ app:main({
         func(char)
     end;
 
-    postevent = function()
+    post_event = function()
 
         if mode == Modes.view and dirty then
             snapshot()
