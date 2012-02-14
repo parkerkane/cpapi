@@ -21,6 +21,10 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 --]]
 
+---------------------------------------------------------------------
+--- Application library
+------
+
 App = {}
 AppMT = {}
 AppMT.__index = App
@@ -183,6 +187,15 @@ function App:main(listener)
         until quit
 end
 
+---------------------------------------------------------------------
+--- Port library
+------
+
+if cpbit == nil then
+    -- cpbit api is not installed. Use default one.
+    cpbit = bit
+end
+
 Port = {}
 
 local PortMT = {}
@@ -284,6 +297,10 @@ Bundled:
 function Port:testOut(bit)
     return cpbit.band(self.outBits, bit) == bit
 end
+
+---------------------------------------------------------------------
+--- Remote logging library
+------
 
 local logTarget
 
