@@ -18,6 +18,8 @@ cp.main(listener)
 >   end
 >})
 
+---
+
 port = cp.portOpen(side)
 
 Redstone:
@@ -30,3 +32,8 @@ Bundle:
 > port:clear(bit[, bit[, ...]])
 > port:test(bit)
 > port:testOut(bit)
+
+---
+
+cp.logInit(side, targetID)
+cp.log(message)
