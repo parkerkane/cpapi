@@ -362,8 +362,6 @@ Opens port to handle signals.
 function openPort(side)
     local self = {}
 
-    self.outBits = 0
-    self.inBits = 0
     self.side = side
 
     local ins = setmetatable(self, PortMT)
@@ -389,11 +387,13 @@ function Port:set(...)
         return
     end
 
+    local bits = rs.getBundledOutput(self.side)
+
     table.foreach(bits, function(idx, val)
-        self.outBits = bor(self.outBits, val)
+        bits = bor(bits, val)
     end)
 
-    rs.setBundledOutput(self.side, self.outBits)
+    rs.setBundledOutput(self.side, bits)
 end
 
 --[[
@@ -418,9 +418,11 @@ function Port:clear(...)
         cbits = bor(cbits, val)
     end)
 
-    self.outBits = band(self.outBits, bnot(cbits))
+    local bits = rs.getBundledOutput(self.side)
 
-    rs.setBundledOutput(self.side, self.outBits)
+    bits = band(bits, bnot(cbits))
+
+    rs.setBundledOutput(self.side, bits)
 end
 
 --[[
@@ -447,7 +449,7 @@ Bundled:
 > port:testOut(colors.gray)
 --]]
 function Port:testOut(bit)
-    return band(self.outBits, bit) == bit
+    return band(rs.getBundledOutput(self.side), bit) == bit
 end
 
 ---------------------------------------------------------------------
