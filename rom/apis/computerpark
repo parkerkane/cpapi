@@ -521,38 +521,29 @@ end
 
 --[[
 Enables caching for function.
+If keyID is not defined it serializes all arguments as a key.
 
 usage:
 func=memoize(func)
+func=memoize(func,1)
 --]]
-function memoize(fn)
+function memoize(fn, keyID)
     local cache = {}
-    return function(...)
-        local key = simpleSerialize(...)
-        if cache[key] == nil then
-            cache[key] = fn(...)
+    if keyID == nil then
+        return function(...)
+            local key = simpleSerialize(...)
+            if cache[key] == nil then
+                cache[key] = fn(...)
+            end
+            return cache[key]
         end
-        return cache[key]
-    end
-end
-
---[[
-Enables caching for function. Faster than memoize becuase uses one argument as a key.
-
-usage:
-func=memoize1(func)
-func=memoize1(func,3)
---]]
-function memoize1(fn, keyID)
-    local cache = {}
-
-    if keyID == nil then keyID = 1 end
-
-    return function(...)
-        local key = ({...})[keyID]
-        if cache[key] == nil then
-            cache[key] = fn(...)
+    else
+        return function(...)
+            local key = ({...})[keyID]
+            if cache[key] == nil then
+                cache[key] = fn(...)
+            end
+            return cache[key]
         end
-        return cache[key]
     end
 end
