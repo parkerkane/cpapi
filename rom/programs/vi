@@ -53,8 +53,8 @@ if fs.exists(filename) and fs.isDir(filename) then
     error("Cannot edit a directory")
 end
 
-local w, h = term.getSize()
-local x, y = 1, 1
+local screenWidth, screenHeight = term.getSize()
+local cursorX, cursorY = 1, 1
 local scrollX, scrollY = 0, 0
 local cmdPos = 1
 local cmdBuffer = ""
@@ -156,28 +156,28 @@ end
 
 local function updateCursorPosition()
 
-    local realX = math.min(x - scrollX, buffer[y]:len() + 1)
+    local realX = math.min(cursorX - scrollX, buffer[cursorY]:len() + 1)
 
     term.setCursorBlink(true)
-    term.setCursorPos(realX, y - scrollY)
+    term.setCursorPos(realX, cursorY - scrollY)
 end
 
 local function updateStatus()
 
-    term.setCursorPos(1, h)
+    term.setCursorPos(1, screenHeight)
     term.clearLine()
 
     if mode == Modes.view or mode == Modes.edit then
-        term.setCursorPos(5, h)
+        term.setCursorPos(5, screenHeight)
 
-        local realX = math.min(x - scrollX, buffer[y]:len() + 1)
-        term.write('L' .. y .. ' C' .. realX)
+        local realX = math.min(cursorX - scrollX, buffer[cursorY]:len() + 1)
+        term.write('L' .. cursorY .. ' C' .. realX)
 
         term.write(' Y' .. #yankBuffer)
         term.write(' U' .. #undoBuffer)
 
         if mode == Modes.edit then
-            term.setCursorPos(w - 15, h)
+            term.setCursorPos(screenWidth - 15, screenHeight)
             term.write('** INSERT **')
         end
 
@@ -186,7 +186,7 @@ local function updateStatus()
     elseif mode == Modes.ex then
         term.write(':' .. cmdBuffer)
 
-        term.setCursorPos(1 + cmdPos, h)
+        term.setCursorPos(1 + cmdPos, screenHeight)
 
     elseif mode == Modes.hold then
         term.write(holdMessage)
@@ -194,24 +194,24 @@ local function updateStatus()
     elseif mode == Modes.search then
         term.write('/' .. cmdBuffer)
 
-        term.setCursorPos(1 + cmdPos, h)
+        term.setCursorPos(1 + cmdPos, screenHeight)
     elseif mode == Modes.searchReverse then
         term.write('?' .. cmdBuffer)
 
-        term.setCursorPos(1 + cmdPos, h)
+        term.setCursorPos(1 + cmdPos, screenHeight)
     end
 end
 
 local function updateLine()
-    local line = buffer[y]
-    term.setCursorPos(1 - scrollX, y - scrollY)
+    local line = buffer[cursorY]
+    term.setCursorPos(1 - scrollX, cursorY - scrollY)
     term.clearLine()
     term.write(line)
-    term.setCursorPos(x - scrollX, y - scrollY)
+    term.setCursorPos(cursorX - scrollX, cursorY - scrollY)
 end
 
 local function updateScreen()
-    for y = 1, h - 1 do
+    for y = 1, screenHeight - 1 do
         term.setCursorPos(1 - scrollX, y)
         term.clearLine()
 
@@ -230,34 +230,34 @@ end
 local function updateCursor(key)
 
     if key == Keys.left or key == 'h' then
-        x = math.min(x, buffer[y]:len() + 1)
-        x = x - 1
+        cursorX = math.min(cursorX, buffer[cursorY]:len() + 1)
+        cursorX = cursorX - 1
 
-        if mode == Modes.edit and x == 0 and y > 1 then
-            local newy = math.max(1, y - 1)
-            x = buffer[newy]:len() + 1
+        if mode == Modes.edit and cursorX == 0 and cursorY > 1 then
+            local newy = math.max(1, cursorY - 1)
+            cursorX = buffer[newy]:len() + 1
 
             os.queueEvent('key', Keys.up)
         elseif mode == Modes.view then
-            x = math.max(x, 1)
+            cursorX = math.max(cursorX, 1)
         end
 
     elseif key == Keys.right or key == 'l' then
-        x = x + 1
+        cursorX = cursorX + 1
 
-        if mode == Modes.edit and x > buffer[y]:len() + 1 and y ~= #buffer then
-            x = 1
+        if mode == Modes.edit and cursorX > buffer[cursorY]:len() + 1 and cursorY ~= #buffer then
+            cursorX = 1
             os.queueEvent('key', Keys.down)
         elseif mode == Modes.view then
-            x = math.min(x, buffer[y]:len() + 1)
+            cursorX = math.min(cursorX, buffer[cursorY]:len() + 1)
         end
 
     elseif key == Keys.up or key == 'k' then
-        y = math.max(1, y - 1)
+        cursorY = math.max(1, cursorY - 1)
         --        x = math.min(x, buffer[y]:len() + 1)
 
     elseif key == Keys.down or key == 'j' then
-        y = math.min(y + 1, #buffer)
+        cursorY = math.min(cursorY + 1, #buffer)
         --        x = math.min(x, buffer[y]:len() + 1)
     end
 
@@ -265,23 +265,23 @@ local function updateCursor(key)
 
     if key == true then update = true end
 
-    while x - scrollX < 1 do
+    while cursorX - scrollX < 1 do
         scrollX = scrollX - 10
 
         if scrollX < 0 then
             scrollX = 0
-            x = 1
+            cursorX = 1
         else
             update = true
         end
     end
 
-    while x - scrollX > w do
+    while cursorX - scrollX > screenWidth do
         scrollX = scrollX + 10
         update = true
     end
 
-    while y - scrollY < 1 do
+    while cursorY - scrollY < 1 do
 
         scrollY = scrollY - 3
         if scrollY < 0 then scrollY = 0 end
@@ -289,11 +289,11 @@ local function updateCursor(key)
         update = true
     end
 
-    while y - scrollY > h - 1 do
+    while cursorY - scrollY > screenHeight - 1 do
         scrollY = scrollY + 3
 
-        if scrollY > #buffer - h + 1 then
-            scrollY = #buffer - h + 1
+        if scrollY > #buffer - screenHeight + 1 then
+            scrollY = #buffer - screenHeight + 1
         end
 
         update = true
@@ -313,9 +313,9 @@ local function yank()
     repeatCount = math.max(1, repeatCount)
 
     for i = 0, repeatCount - 1 do
-        if y + i > #buffer then break end
+        if cursorY + i > #buffer then break end
 
-        table.insert(yankBuffer, buffer[y + i])
+        table.insert(yankBuffer, buffer[cursorY + i])
     end
 
     repeatCount = 0
@@ -327,7 +327,7 @@ local function pasteYank()
     local i = 0
 
     table.foreach(yankBuffer, function(idx, line)
-        table.insert(buffer, y + i, line)
+        table.insert(buffer, cursorY + i, line)
     end)
 end
 
@@ -339,8 +339,8 @@ local function snapshot_begin()
     dirty = true
 
     snapshotData = {
-        x = x,
-        y = y,
+        x = cursorX,
+        y = cursorY,
         buffer = cloneTable(buffer)
     }
 end
@@ -361,8 +361,8 @@ local function undo()
 
     buffer = data.buffer
 
-    x = data.x
-    y = data.y
+    cursorX = data.x
+    cursorY = data.y
 
     updateScreen()
 end
@@ -413,14 +413,14 @@ local function runExCommand(cmd)
 
     elseif cmd == 'r' then
         load(filename)
-        x = 1
-        y = 1
+        cursorX = 1
+        cursorY = 1
         updateCursor()
         updateScreen()
 
     elseif tonumber(cmd) ~= nil then
-        x = 1
-        y = math.min(#buffer, tonumber(cmd))
+        cursorX = 1
+        cursorY = math.min(#buffer, tonumber(cmd))
         updateCursor()
     end
 end
@@ -428,8 +428,8 @@ end
 --[[ Searching ]] --
 
 local function doSearch(reverse)
-    searchPositionX = x
-    searchPositionY = y
+    searchPositionX = cursorX
+    searchPositionY = cursorY
 
     if reverse then
 
@@ -439,11 +439,11 @@ local function doSearch(reverse)
             searchPositionX = 0xFFFF
 
             if newPos ~= nil then
-                x = newPos
-                y = i
+                cursorX = newPos
+                cursorY = i
 
-                searchPositionX = x
-                searchPositionY = y
+                searchPositionX = cursorX
+                searchPositionY = cursorY
 
                 updateCursor()
                 updateScreen()
@@ -457,11 +457,11 @@ local function doSearch(reverse)
             searchPositionX = 0
 
             if newPos ~= nil then
-                x = newPos
-                y = i
+                cursorX = newPos
+                cursorY = i
 
-                searchPositionX = x
-                searchPositionY = y
+                searchPositionX = cursorX
+                searchPositionY = cursorY
 
                 updateCursor()
                 updateScreen()
@@ -493,37 +493,37 @@ local viewModeListener = {
     end;
 
     a = function()
-        x = math.min(buffer[y]:len() + 1, x + 1)
+        cursorX = math.min(buffer[cursorY]:len() + 1, cursorX + 1)
         setMode(Modes.edit)
         updateStatus()
     end;
 
     I = function()
         setMode(Modes.edit)
-        x = 1
+        cursorX = 1
         updateStatus()
     end;
 
     A = function()
         setMode(Modes.edit)
-        x = buffer[y]:len() + 1
+        cursorX = buffer[cursorY]:len() + 1
         updateStatus()
     end;
 
     o = repeatable(function()
         snapshot_begin()
         setMode(Modes.edit)
-        x = 1
-        y = y + 1
-        table.insert(buffer, y, "")
+        cursorX = 1
+        cursorY = cursorY + 1
+        table.insert(buffer, cursorY, "")
         updateScreen()
     end);
 
     O = repeatable(function()
         snapshot_begin()
         setMode(Modes.edit)
-        x = 1
-        table.insert(buffer, y, "")
+        cursorX = 1
+        table.insert(buffer, cursorY, "")
         updateScreen()
     end);
 
@@ -535,12 +535,12 @@ local viewModeListener = {
     end;
 
     ['$'] = function()
-        x = buffer[y]:len() + 1
+        cursorX = buffer[cursorY]:len() + 1
         updateCursor()
     end;
 
     ['^'] = function()
-        x = 1
+        cursorX = 1
         updateCursor()
     end;
 
@@ -551,7 +551,7 @@ local viewModeListener = {
             return
         end
 
-        x = 1
+        cursorX = 1
         updateCursor()
     end;
 
@@ -584,11 +584,11 @@ local viewModeListener = {
     G = function()
 
         if repeatCount == 0 then
-            x = 1
-            y = #buffer
+            cursorX = 1
+            cursorY = #buffer
         else
-            x = 1
-            y = math.min(repeatCount, #buffer)
+            cursorX = 1
+            cursorY = math.min(repeatCount, #buffer)
         end
 
         updateCursor()
@@ -604,7 +604,7 @@ local viewModeListener = {
     p = repeatable(function()
         snapshot_begin()
         pasteYank()
-        y = y + #yankBuffer
+        cursorY = cursorY + #yankBuffer
         updateScreen(true)
     end);
 
@@ -615,23 +615,27 @@ local viewModeListener = {
     end);
 
     U = function()
-        y = math.max(1, y - math.floor(h / 2))
-        updateCursor()
+        cursorY = math.max(1, cursorY - math.floor(screenHeight / 2))
+        scrollY = math.max(1, scrollY - math.floor(screenHeight / 2))
+        updateCursor(true)
     end;
 
     D = function()
-        y = math.min(#buffer, y + math.floor(h / 2))
-        updateCursor()
+        cursorY = math.min(#buffer, cursorY + math.floor(screenHeight / 2))
+        scrollY = math.min(#buffer, scrollY + math.floor(screenHeight / 2))
+        updateCursor(true)
     end;
 
     B = function()
-        y = math.max(1, y - h - 1)
-        updateCursor()
+        cursorY = math.max(1, cursorY - screenHeight - 1)
+        scrollY = math.max(1, scrollY - screenHeight - 1)
+        updateCursor(true)
     end;
 
     F = function()
-        y = math.min(#buffer, y + h - 1)
-        updateCursor()
+        cursorY = math.min(#buffer, cursorY + screenHeight - 1)
+        scrollY = math.min(#buffer, scrollY + screenHeight - 1)
+        updateCursor(true)
     end;
 
     u = repeatable(function()
@@ -645,8 +649,8 @@ local viewModeListener = {
         if c == 'dd' then
             repeatable(function()
                 snapshot_begin()
-                table.remove(buffer, y)
-                y = math.min(y, #buffer)
+                table.remove(buffer, cursorY)
+                cursorY = math.min(cursorY, #buffer)
                 updateCursor(true)
             end)()
 
@@ -680,13 +684,13 @@ local editModeListener = {
 
     [Keys.enter] = function()
         snapshot_begin()
-        local line = buffer[y]
+        local line = buffer[cursorY]
 
-        buffer[y] = buffer[y]:sub(1, x - 1)
-        table.insert(buffer, y + 1, line:sub(x))
+        buffer[cursorY] = buffer[cursorY]:sub(1, cursorX - 1)
+        table.insert(buffer, cursorY + 1, line:sub(cursorX))
 
-        x = 1
-        y = y + 1
+        cursorX = 1
+        cursorY = cursorY + 1
 
         updateScreen()
     end;
@@ -694,16 +698,16 @@ local editModeListener = {
     [Keys.bspace] = function()
         snapshot_begin()
 
-        if x > 1 then
-            x = x - 1
-            buffer[y] = buffer[y]:sub(1, x - 1) .. buffer[y]:sub(x + 1)
-        elseif y > 1 then
-            local ln = buffer[y - 1]:len()
-            buffer[y - 1] = buffer[y - 1] .. buffer[y]
-            table.remove(buffer, y)
+        if cursorX > 1 then
+            cursorX = cursorX - 1
+            buffer[cursorY] = buffer[cursorY]:sub(1, cursorX - 1) .. buffer[cursorY]:sub(cursorX + 1)
+        elseif cursorY > 1 then
+            local ln = buffer[cursorY - 1]:len()
+            buffer[cursorY - 1] = buffer[cursorY - 1] .. buffer[cursorY]
+            table.remove(buffer, cursorY)
 
-            x = ln + 1
-            y = y - 1
+            cursorX = ln + 1
+            cursorY = cursorY - 1
         end
         updateScreen()
     end;
@@ -711,9 +715,9 @@ local editModeListener = {
     [Keys.tab] = function()
         snapshot_begin()
 
-        buffer[y] = buffer[y]:sub(1, x - 1) .. "  " .. buffer[y]:sub(x)
+        buffer[cursorY] = buffer[cursorY]:sub(1, cursorX - 1) .. "  " .. buffer[cursorY]:sub(cursorX)
 
-        x = x + 2
+        cursorX = cursorX + 2
         updateLine()
         updateCursorPosition()
         updateCursor()
@@ -722,8 +726,8 @@ local editModeListener = {
     defaultChar = function(char)
         snapshot_begin()
 
-        buffer[y] = buffer[y]:sub(1, x - 1) .. char .. buffer[y]:sub(x)
-        x = x + 1
+        buffer[cursorY] = buffer[cursorY]:sub(1, cursorX - 1) .. char .. buffer[cursorY]:sub(cursorX)
+        cursorX = cursorX + 1
         updateLine()
         updateCursorPosition()
         updateCursor()
