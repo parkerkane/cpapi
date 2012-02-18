@@ -188,6 +188,12 @@ function App:main(listener)
         until quit
 end
 
+local default = App.new()
+
+function callLater(...) return default:callLater(...) end
+
+function main(...) default:main(...) end
+
 ---------------------------------------------------------------------
 --- Bitwise library
 ------
@@ -487,8 +493,39 @@ function log(...)
     end
 end
 
-local default = App.new()
+---------------------------------------------------------------------
+--- Memoize library
+------
 
-function callLater(...) return default:callLater(...) end
+local function value(v)
+    local vtype = type(v)
+    if     vtype == "string" then
+        return string.format("%q", v)
+    elseif vtype == "number" then
+        return v
+    else
+        -- error("pickle a "..type(v).." is not supported")
+        return tostring(v)
+    end
+end
 
-function main(...) default:main(...) end
+local function simpleSerialize(...)
+    local s = '{'
+    for k, v in ipairs({...}) do
+        s=string.format('%s[%s]=%s,', s, value(k), value(v))
+    end
+    s = s.."}"
+
+    return s
+end
+
+function memoize(fn)
+    local cache = {}
+    return function(...)
+        local key = simpleSerialize(...)
+        if cache[key] == nil then
+            cache[key] = fn(...)
+        end
+        return cache[key]
+    end
+end
