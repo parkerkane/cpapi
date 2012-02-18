@@ -519,10 +519,33 @@ local function simpleSerialize(...)
     return s
 end
 
+--[[
+Enables caching for function.
+
+usage:
+func=memoize(func)
+--]]
 function memoize(fn)
     local cache = {}
     return function(...)
         local key = simpleSerialize(...)
+        if cache[key] == nil then
+            cache[key] = fn(...)
+        end
+        return cache[key]
+    end
+end
+
+--[[
+Enables caching for function. Faster than memoize becuase uses first argument as a key.
+
+usage:
+func=memoize1(func)
+--]]
+function memoize1(fn)
+    local cache = {}
+    return function(...)
+        local key = ({...})[1]
         if cache[key] == nil then
             cache[key] = fn(...)
         end
